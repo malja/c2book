@@ -1,13 +1,29 @@
 var convert = require("./convert").convert;
 var config = require("./config").config;
 var beautify = require("js-beautify");
+var ParserError = require("./parser_error").ParserError;
+
+/**
+ * Vstupní brána do celé aplikace. Zde se registrují "listenery" pro
+ * stisk tlačítka "Konvertovat" a následná konverze z vloženého HTML
+ * na uuString.
+ */
 
 document.addEventListener("DOMContentLoaded", ev => {
     document.getElementById("convert").addEventListener("click", ev => {
 
+        let output_string = "";
+        let input = document.getElementById("input");
+        let output = document.getElementById("output");
         try {
-            // Výstup uu string
-            document.getElementById("output").value = beautify.html("<uu5string/>" + convert(document.getElementById("input").value, config), {
+            // Převede HTML na uuString tagy
+            output_string = convert(input.value, config);
+
+            // Skryju chyby od minule
+            document.getElementById("error").style.display = "none";
+
+            // Výstup "formátovaného" uuStringu
+            output.value = beautify.html("<uu5string/>" + output_string, {
                 indent_size: "4",
                 indent_char: " ",
                 max_preserve_newlines: "5",
@@ -26,9 +42,20 @@ document.addEventListener("DOMContentLoaded", ev => {
                 e4x: false,
                 indent_empty_lines: false
             });
+
+            output.focus();
+            output.select();
+            document.execCommand('copy');
         } catch (e) {
-            console.log(e);
-            document.getElementById("error_message").innerHTML = e;
+            if (e instanceof ParserError) {
+                input.focus();
+                input.setSelectionRange(e.position_start, e.position_end);
+
+                document.getElementById("error_message").innerHTML = e.message;
+            } else {
+                document.getElementById("error_message").innerHTML = e;
+            }
+
             document.getElementById("error").style.display = "block";
         }
     });

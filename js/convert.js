@@ -1,5 +1,7 @@
 var customDom = require("./custom_dom");
 var htmljs_parser = require("htmljs-parser");
+var menuBuilder = require("./menu_builder").menuBuilder;
+var ParserError = require("./parser_error").ParserError;
 
 /**
  * Převede HTMl z confluence do uuString-ů.
@@ -9,19 +11,15 @@ var htmljs_parser = require("htmljs-parser");
 function convert(html, config) {
     let dom = parseHtmlToCustomDom(html, config);
 
+    // Tím že volám toString zajistím, že se provedou automatizace před tím, než budu dělat menu
+    let content = dom.toString();
+    
     // Mám přidat menu?
     if (config.addContentIndex) {
-        let menu_doc = new customDom.Document();
-        let current_element = menu_doc.createElement("ul", config.replacements.ul);
-
-        let menu_items = ["h1", "h2", "h3", "h4", "h5", "h6"].map(name => dom.getChildrenByTagName(name));
-
-        for (let menu_item of menu_items) {
-
-        }
+        content = menuBuilder(dom, config) + content;
     }
 
-    return menu + dom.toString();
+    return content;
 }
 
 function parseHtmlToCustomDom(html, config) {
@@ -73,24 +71,24 @@ function parseHtmlToCustomDom(html, config) {
                 console.error("Unknown tag: " + originalTagName);
 
                 if (config.strictMode) {
-                    throw "Tag: <strong>" + originalTagName + "</strong> není v konfiguraci povolen.";
+                    throw new ParserError("Tag: <strong>" + originalTagName + "</strong> není v konfiguraci povolen.", event.pos, event.endPos);
                 }
             }
+
         },
 
         onCloseTag: (event) => {
 
-            // console.log("closing tag: " + event.tagName);
+            if (event.tagName in replacements) {
+                let replInfo = replacements[event.tagName];
+                if (!replInfo.skip) {
 
-            if (currentTag.getTagName() == "document") {
-                console.error("Leaving document!");
-                throw "Při parsování se vyskytla chyba";
-            } else {
-                if (event.tagName in replacements) {
-                    let replInfo = replacements[event.tagName];
-                    if (!replInfo.skip) {
-                        currentTag = currentTag.getParent();
+                    if (currentTag.getTagName() == "document") {
+                        console.error("Leaving document!");
+                        throw new ParserError("Interní chyba při sestavování DOM", event.pos, event.endPos);
                     }
+
+                    currentTag = currentTag.getParent();
                 }
             }
         },
@@ -106,13 +104,15 @@ function parseHtmlToCustomDom(html, config) {
             currentTag.addChild(
                 textElement
             );
+        },
+        onError: (event) => {
+            throw new ParserError(event.message, event.pos, event.endPos);
         }
     });
 
-    html = html.replace(/(\r\n|\n|\r)/gm, "");
     parser.parse(html);
 
-    return doc;
+    return doc
 }
 
 module.exports = {

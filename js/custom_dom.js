@@ -10,8 +10,9 @@ class Document {
 
     toString() {
         let children_tags = [];
-        for (let child of this.children) {
-            children_tags.push(child.toString());
+
+        for (let i = 0; i < this.children.length; i++) {
+            children_tags.push(this.children[i].toString());
         }
 
         return children_tags.join("");
@@ -23,14 +24,18 @@ class Document {
 
     createElement(originalTagName, replInfo) {
         if (originalTagName == "table") {
-            return new TableElement();
+            return new TableElement(originalTagName, replInfo.replacements.tag, replInfo.hasEndTag, replInfo.automation);
         } else {
             return new Element(originalTagName, replInfo.replacements.tag, replInfo.hasEndTag, replInfo.automation);
         }
     }
 
-    getChildrenByTagName(name) {
-        return this.children.filter((child) => child.getTagName() == name);
+    getText() {
+        return this.children.filter(e => e.getTagName() == "text").join("");
+    }
+
+    getChildren() {
+        return this.children;
     }
 }
 
@@ -65,6 +70,10 @@ class Element {
         return this.parent;
     }
 
+    getChildren() {
+        return this.children;
+    }
+
     toUUString(preserveItself = false) {
         let normal_string = this.getContentAsString();
 
@@ -95,10 +104,12 @@ class Element {
 
         // Argumenty
         if (this.automation && this.automation.attributes) {
-            return this.automation.attributes(this);
+            this.args = this.automation.attributes(this);
         }
 
-        for (let key in this.args) {
+        for (let i = 0; i < Object.keys(this.args).length; i++) {
+            let key = Object.keys(this.args)[i];
+
             if (this.args.hasOwnProperty(key)) {
                 args.push(key + '="' + this.args[key] + '"');
             }
@@ -110,13 +121,14 @@ class Element {
     getContentAsString() {
         let content = "";
 
+
         if (this.automation && this.automation.content) {
             content = this.automation.content(this);
         } else {
             let children_tags = [];
 
-            for (let child of this.children) {
-                children_tags.push(child.toString());
+            for (let i = 0; i < this.children.length; i++) {
+                children_tags.push(this.children[i].toString());
             }
 
             content = children_tags.join("");
@@ -125,7 +137,6 @@ class Element {
         return content;
     }
 
-    // TODO: GetuuTagName
     getTagName() {
         return this.tag
     }
@@ -140,14 +151,29 @@ class Element {
 }
 
 class TableElement extends Element {
+
     toString() {
         let isSimpleTable = true;
 
+        //console.log(this.children.length);
+
         // Pro tabulku bez row a col span jde použít bookkit tabulku, jinak uu5 tabulku
-        for (let child of this.children) {
-            let found = child.hasArgument("rowSpan") || child.hasArgument("colSpan");
-            if (found) {
-                isSimpleTable = false;
+        for (let x = 0; x < this.children.length; x++) {
+            // Je ještě před náhradou za nové argumenty rowSpan a colSpan
+            // Proto kontroluju standardní html argumenty
+
+            let row = this.children[x];
+
+            for(let y = 0; y < row.children.length; y++) {
+                let cell = row.children[y];
+                let found = cell.hasArgument("rowspan") || cell.hasArgument("colspan");
+                if (found) {
+                    isSimpleTable = false;
+                    break;
+                }
+            }
+
+            if (!isSimpleTable) {
                 break;
             }
         }
@@ -171,8 +197,6 @@ class TableElement extends Element {
         let dataIndex = 0;
         let rowHeader = false;
         let columnHeader = false;
-
-        let output = "<UuContentKit.Tables.Table {$header$} data='<uu5json/>{$data$}'/>";
 
         for (let rowId in this.children) {
             let child = this.children[rowId];
@@ -208,7 +232,8 @@ class TableElement extends Element {
             }
         }
 
-        return output.replace("{$header$}", (rowHeader ? " rowHeader " : "") + (columnHeader ? " columnHeader " : "")).replace("{$data$}", JSON.stringify(data));
+        let output = `<UuContentKit.Tables.Table ${(rowHeader ? " rowHeader " : "") + (columnHeader ? " columnHeader " : "")} data='<uu5json/>${JSON.stringify(data)}'/>`;
+        return output.replace("{$header$}", ).replace("{$data$}", JSON.stringify(data));
     }
 }
 
@@ -228,6 +253,10 @@ class TextElement {
 
     getTagName() {
         return "text";
+    }
+
+    getChildren() {
+        return [];
     }
 }
 
