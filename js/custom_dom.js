@@ -23,10 +23,14 @@ class Document {
     }
 
     createElement(originalTagName, replInfo) {
+        let newTagName = replInfo.replacements.tag ? replInfo.replacements.tag : originalTagName;
+        let hasEndTag = replInfo.hasEndTag;
+        let automation = replInfo.automation;
+
         if (originalTagName == "table") {
-            return new TableElement(originalTagName, replInfo.replacements.tag, replInfo.hasEndTag, replInfo.automation);
+            return new TableElement(originalTagName, newTagName, hasEndTag, automation);
         } else {
-            return new Element(originalTagName, replInfo.replacements.tag, replInfo.hasEndTag, replInfo.automation);
+            return new Element(originalTagName, newTagName, hasEndTag, automation);
         }
     }
 
@@ -111,7 +115,7 @@ class Element {
             let key = Object.keys(this.args)[i];
 
             if (this.args.hasOwnProperty(key)) {
-                args.push(key + '="' + this.args[key] + '"');
+                args.push(`${key}="${this.args[key]}"`);
             }
         }
 
@@ -155,8 +159,6 @@ class TableElement extends Element {
     toString() {
         let isSimpleTable = true;
 
-        //console.log(this.children.length);
-
         // Pro tabulku bez row a col span jde použít bookkit tabulku, jinak uu5 tabulku
         for (let x = 0; x < this.children.length; x++) {
             // Je ještě před náhradou za nové argumenty rowSpan a colSpan
@@ -164,7 +166,7 @@ class TableElement extends Element {
 
             let row = this.children[x];
 
-            for(let y = 0; y < row.children.length; y++) {
+            for (let y = 0; y < row.children.length; y++) {
                 let cell = row.children[y];
                 let found = cell.hasArgument("rowspan") || cell.hasArgument("colspan");
                 if (found) {
@@ -223,7 +225,6 @@ class TableElement extends Element {
 
                     // Uložíme data
                     if (elem.getTagName() == "td" || elem.getTagName() == "th") {
-                        // Pro potřeby 
                         data[dataIndex].push(elem.toUUString());
                     } else {
                         data[dataIndex].push(elem.toString());
@@ -232,8 +233,8 @@ class TableElement extends Element {
             }
         }
 
-        let output = `<UuContentKit.Tables.Table ${(rowHeader ? " rowHeader " : "") + (columnHeader ? " columnHeader " : "")} data='<uu5json/>${JSON.stringify(data)}'/>`;
-        return output.replace("{$header$}", ).replace("{$data$}", JSON.stringify(data));
+        let output = `<UuContentKit.Tables.Table ${(rowHeader ? "rowHeader " : "") + (columnHeader ? "columnHeader " : "")} data=${ JSON.stringify("<uu5json/>" + JSON.stringify(data)).replace(/^("\\")/, "").replace(/(\\"")$/, "").replace(/(")$/, "") }"/>`;
+        return output;
     }
 }
 

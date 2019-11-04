@@ -6,6 +6,4 @@ class ParserError {
     }
 }
 
-module.exports = {
-    ParserError
-};
+module.exports = ParserError;

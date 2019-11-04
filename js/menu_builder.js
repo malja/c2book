@@ -31,7 +31,7 @@ class Menu {
 
         // Už existuje prvek, který ale má vyšší level, než ten aktuální
         let right_position = this.current_item;
-        while(right_position.level >= item.level) {
+        while (right_position.level >= item.level) {
             // Má rodiče, přejdu o úroveň výš
             if (right_position.parent) {
                 right_position = right_position.parent;
@@ -48,8 +48,8 @@ class Menu {
     }
 
     toString() {
-        let data = this.children.map(child => child.toString());
-        let output = `<UU5.Bricks.Section header="Obsah" level="1"><UU5.RichText.Block uu5string="<uu5string/><UU5.Bricks.Ul>${data}</UU5.Bricks.Ul>"/></UU5.Bricks.Section>`;
+        let data = this.children.map(child => child.toString()).join("");
+        let output = `<UU5.Bricks.Section header=\"Obsah\" level=\"1\"><UU5.RichText.Block uu5string=\"<uu5string/><UU5.Bricks.Ul>${data}</UU5.Bricks.Ul>\"/></UU5.Bricks.Section>`;
         return output;
     }
 }
@@ -65,15 +65,7 @@ class MenuItem {
 
     toString() {
         let data = this.children.map(child => child.toString());
-
-        let output = 
-            `<UU5.Bricks.Li>
-                <UuBookKit.Bricks.GoToPageLink
-                    label='${this.text}'
-                    fragment='${this.link}'/>
-                ${ data.length != 0 ? "<UU5.Bricks.Ul>" + data.join("") + "</UU5.Bricks.Ul>" : ""}
-            </UU5.Bricks.Li>`;
-
+        let output = `<UU5.Bricks.Li><UuBookKit.Bricks.GoToPageLink label=\'${this.text}\' fragment=\'${this.link}\'/> ${ data.length != 0 ? "<UU5.Bricks.Ul>" + data.join("") + "</UU5.Bricks.Ul>" : ""}</UU5.Bricks.Li>`;
         return output;
     }
 }
@@ -81,7 +73,7 @@ class MenuItem {
 function findTitles(element) {
     let titles = [];
 
-    for(let child of element.getChildren()) {
+    for (let child of element.getChildren()) {
         if (["h1", "h2", "h3", "h4", "h5", "h6"].includes(child.getTagName())) {
             titles.push(child);
         }
@@ -106,15 +98,17 @@ function menuBuilder(dom, config) {
     for (let title of title_elements) {
 
         menu.addItem(
-            title.args.header, 
-            title.args.id, 
+            title.args.header,
+            title.args.id,
             title.args.level
         );
+    }
+
+    if (menu.children.length == 0) {
+        return "";
     }
 
     return menu.toString();
 }
 
-module.exports = {
-    menuBuilder
-};
+module.exports = menuBuilder;

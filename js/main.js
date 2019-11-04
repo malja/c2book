@@ -185,12 +185,27 @@ process.chdir = function (dir) {
 process.umask = function() { return 0; };
 
 },{}],2:[function(require,module,exports){
-var generateId = require("./generateId").generateId;
+var generateId = require("./generateId");
+
+/**
+ * Toto je defaultní nastavení, které je použito v případě, že u tagu nějaké nastavení chybí.
+ */
+let defaultTagConfig = {
+    "hasEndTag": true,
+    "skip": false,
+    "ignore": false,
+    "replacements": {},
+    "allowed": {
+        "attributes": []
+    },
+    "automation": null
+}
 
 let headerReplacement = {
     "hasEndTag": true,
     "replacements": {
-        "tag": "UU5.Bricks.Section"
+        "tag": "UU5.Bricks.Section",
+        "attributes": {}
     },
     "automation": {
         "attributes": (me) => {
@@ -198,20 +213,20 @@ let headerReplacement = {
             // Vezme obsah tagu h<1-6> a vloží ho do argumentu header.
             // Pokud jde jen o text, vloží se text jako takový.
             // Pokud jde o více tagu, přihodí se ještě <uu5string/> před samotný kód
-            args["header"] = (me.children.length == 1 && me.children[0].getTagName() == "text" ? "" : "<uu5string/>" ) + me.children.map(c => c.toString()).join("");
+            args["header"] = (me.children.length == 1 && me.children[0].getTagName() == "text" ? "" : "<uu5string/>") + me.children.map(c => c.toString()).join("");
             args["id"] = generateId();
             args["level"] = parseInt(me.getTagName().substr(-1));
             return args;
         },
         "content": (me) => {
-            me.children = [];   // Všechny děti jsou v argumentu header
+            me.children = []; // Všechny děti jsou v argumentu header
 
-            let siblings = me.parent.children.slice(me.parent.children.findIndex(e => e == me)+1);
+            let siblings = me.parent.children.slice(me.parent.children.findIndex(e => e == me) + 1);
 
-            for(let sibling of siblings) {
+            for (let sibling of siblings) {
                 // Jde taky o nadpis
                 if (["h1", "h2", "h3", "h4", "h5", "h6"].includes(sibling.getTagName())) {
-                    
+
                     let sibling_level = parseInt(sibling.getTagName().substr(-1));
 
                     // Je nižší nebo stejný level?
@@ -234,7 +249,7 @@ let headerReplacement = {
                 children_tags.push(me.children[i].toString());
             }
 
-            return children_tags.join("");
+            return `${children_tags.join("")}`;
         }
     },
     "allowed": {
@@ -303,7 +318,8 @@ let config = {
         "code": {
             "hasEndTag": true,
             "replacements": {
-                "tag": "UU5.Bricks.Code"
+                "tag": "UU5.Bricks.Code",
+                "attributes": {}
             },
             "allowed": {
                 "attributes": []
@@ -312,15 +328,70 @@ let config = {
         "p": {
             "hasEndTag": true,
             "replacements": {
-                "tag": "UU5.Bricks.P"
+                "tag": "UU5.Bricks.P",
+                "attributes": {}
             },
             "allowed": {
                 "attributes": []
+            },
+            "automation": {
+                "content": (me) => {
+                    // Z nějakého důvodu nelze, aby obrázek byl v tagu P. Pokud se to stane,
+                    // odebere se tag P a místo něj se vloží samotný obrázek.
+                    if (me.children.length == 1 && me.children[0].getTagName() == "ac:image") {
+                        console.log("Je to obrázek");
+
+                        // Najdu sám sebe v rodičovi
+                        let myIndex = me.parent.children.find(c => c == me);
+                        console.log("Můj index: " + myIndex);
+                        // Nastavím obrázek jako potomka rodiče hned za tímto paragrafem
+                        me.parent.children = me.parent.children.splice(myIndex, 0, me.children[0]);
+                        me.children[0].parent = me.parent;
+
+                        me.children = [];
+                        return "";
+                    }
+
+                    console.log("Není img");
+                    return me.children.map(c => c.toString()).join("");
+                }
             }
         },
         "span": {
             "hasEndTag": true,
-            "skip": true,
+            "replacements": {
+                "tag": "UU5.Bricks.Span",
+                "attributes": {}
+            },
+            "allowed": {
+                "attributes": [
+                    "style"
+                ]
+            },
+            "automation": {
+                "attributes": (me) => {
+                    // uu používá místo pomlčkou oddělených slov camelCase pro zápis
+                    // jednotlivých CSS vlastností
+                    let style_string = "style" in me.args ? me.args.style : "";
+
+                    if (style_string.length == 0) {
+                        return me.args;
+                    }
+
+                    me.args.style = style_string.replace(/-([a-z])/g, g => {
+                        return g[1].toUpperCase();
+                    });
+
+                    return me.args;
+                }
+            }
+        },
+        "div": {
+            "hasEndTag": true,
+            "replacements": {
+                "tag": "UU5.Bricks.Div",
+                "attributes": {}
+            },
             "allowed": {
                 "attributes": []
             }
@@ -328,18 +399,28 @@ let config = {
         "strong": {
             "hasEndTag": true,
             "replacements": {
-                "tag": "UU5.Bricks.Div"
+                "tag": "strong",
+                "attributes": {}
             },
-            "automation": {
-                "content": (me) => {
-                    let parts = [];
-                    for (let child of me.children) {
-                        parts.push(child.toString());
-                    }
-
-                    let content = "<strong>{$content$}</strong>".replace("{$content$}", parts.join(""));
-                    return content;
-                }
+            "allowed": {
+                "attributes": []
+            }
+        },
+        "i": {
+            "hasEndTag": true,
+            "replacements": {
+                "tag": "i",
+                "attributes": {}
+            },
+            "allowed": {
+                "attributes": []
+            }
+        },
+        "u": {
+            "hasEndTag": true,
+            "replacements": {
+                "tag": "u",
+                "attributes": {}
             },
             "allowed": {
                 "attributes": []
@@ -351,35 +432,316 @@ let config = {
         "h4": headerReplacement,
         "h5": headerReplacement,
         "h6": headerReplacement,
-        "br": {
-            "skip": true,
+        "br": {},
+        "ol": {
+            "hasEndTag": true,
+            "replacements": {
+                "tag": "UU5.Bricks.Ol"
+            },
             "allowed": {
                 "attributes": []
             }
+        },
+        "ul": {
+            "hasEndTag": true,
+            "replacements": {
+                "tag": "UU5.Bricks.Ul"
+            },
+            "allowed": {
+                "attributes": []
+            }
+        },
+        "li": {
+            "hasEndTag": true,
+            "replacements": {
+                "tag": "UU5.Bricks.Li"
+            },
+            "allowed": {
+                "attributes": []
+            }
+        },
+        "ac:structured-macro": {
+            "hasEndTag": false,
+            "replacements": {
+                "tag": "UU5.RichText.Block",
+                "attributes": {
+                    "ac:name": "name"
+                }
+            },
+            "allowed": {
+                "attributes": [
+                    "ac:name"
+                ]
+            },
+            "automation": {
+                "attributes": (me) => {
+                    if ("name" in me.args) {
+                        if (me.args.name == "code") {
+                            let children = me.children.filter(c => c.getTagName() == "text");
+                            me.children = [];
+
+                            me.args["uu5string"] = JSON.stringify(`<uu5string/><UU5.Bricks.Code content="${children.map(c=>c.toString()).join('')}"/>`).replace(/^("\\")/, "").replace(/(\\"")$/g, "").replace(/^"+/, "").replace(/"+$/, "");
+                            delete me.args.name;
+
+                            return me.args;
+                        }
+
+                        if (me.args.name == "details") {
+                            // Najde v obsahu tag <ac:rich-text-body> a jako obsah nastaví jeho 
+                            let new_children = me.children.filter(c => c.getTagName() == "ac:rich-text-body")[0].children;
+                            me.children = [];
+                            new_children.map(c => me.addChild(c));
+                            delete me.args.name;
+
+                            // Nemohu volat me.toString, protože to by způsobilo zacyklení
+                            let uu = JSON.stringify(`<uu5string/>${new_children.map(c=>c.toString()).join('')}`).replace(/^("\\")/, "").replace(/(\\"")$/g, "").replace(/^"+/, "").replace(/"+$/, "");
+                            me.args["uu5string"] = uu;
+                            return me.args;
+                        }
+                    }
+
+                    me.children.map(c => delete c);
+                    me.children = [];
+                    return "";
+                }
+            }
+        },
+        "ac:rich-text-body": {
+            "hasEndTag": false,
+            "replacements": {
+                "tag": "UU5.RichText.Block",
+                "attributes": {}
+            },
+            "allowed": {
+                "attributes": []
+            },
+            "automation": {
+                "attributes": (me) => {
+                    me.args["uu5string"] = me.children.map(c => c.toString()).join("");
+
+                    me.children.map(c => delete c);
+                    me.children = [];
+                    return me.args;
+                }
+            }
+        },
+        "ac:parameter": {
+            "hasEndTag": true,
+            "replacements": {
+                "tag": "UU5.Bricks.Span",
+                "attributes": {
+                    "ac:name": "name"
+                }
+            },
+            "allowed": {
+                "attributes": [
+                    "ac:name"
+                ]
+            },
+            "automation": {
+                "content": (me) => {
+                    return "";
+                }
+            }
+        },
+        "ac:placeholder": {
+            "ignore": true
+        },
+        "ac:link": {
+            "hasEndTag": false,
+            "replacements": {
+                "tag": "UuBookKit.Bricks.GoToPageLink",
+                "attributes": {}
+            },
+            "allowed": {
+                "attributes": []
+            },
+            "automation": {
+                "attributes": (me) => {
+                    let title = "";
+
+                    let page_link = me.children.filter(c => c.getTagName() == "ri:page");
+                    if (page_link.length == 1) {
+                        title = page_link[0].args["ri:content-title"];
+                    }
+
+                    let page = null;
+                    let label = null;
+                    let fragment = null;
+
+                    if (title.length != 0) {
+                        page = prompt(`Dialog: \u2776/\u2778\n\nV kódu byl nalezen odkaz na stránku \u27A4${title}\u2B9C.\n\nZadejte kód stránky v uuBook`);
+                        label = prompt(`Dialog: \u2777/\u2778\n\nV kódu byl nalezen odkaz na stránku \u27A4${title}\u2B9C.\n\nZadejte text odkazu (pro jméno stránky nechte prázdné)`);
+                        fragment = prompt(`Dialog: \u2778/\u2778\n\nV kódu byl nalezen odkaz na stránku \u27A4${title}\u2B9C.\n\nZadejte ID sekce (nebo nechte prázdné)`);
+                    }
+
+                    me.args["page"] = page ? page : "PLACEHOLDER";
+
+                    if (label) {
+                        me.args["label"] = label;
+                    }
+
+                    if (fragment) {
+                        me.args["fragment"] = fragment;
+                    }
+
+                    if (title.length) {
+                        me.children.map(c => delete c);
+                        me.children = [];
+                    }
+
+                    return me.args;
+                },
+            }
+        },
+        "ri:page": {
+            "hasEndTag": true,
+            "replacements": {
+                "tag": "UU5.Bricks.Span",
+                "attributes": {}
+            },
+            "allowed": {
+                "attributes": [
+                    "ri:content-title"
+                ]
+            }
+        },
+        "ri:user": {
+            "hasEndTag": true,
+            "replacements": {
+                "tag": "UU5.Bricks.Div",
+                "attributes": {
+                    "ri:userkey": "id"
+                }
+            },
+            "allowed": {
+                "attributes": [
+                    "ri:userkey"
+                ]
+            },
+            "automation": {
+                "content": (me) => {
+                    return `Odkaz na uživatele s ID: <UU5.RichText.Block uu5string="<UU5.Bricks.Span style="backgroundColor: gray;">${me.args.id}</UU5.Bricks.Span" />`;
+                }
+            }
+        },
+        "ac:plain-text-link-body": {
+            "hasEndTag": true,
+            "replacements": {
+                "tag": "UU5.Bricks.Span",
+                "attributes": {}
+            },
+            "allowed": {
+                "attributes": []
+            }
+        },
+        "time": {
+            "hasEndTag": true,
+            "replacements": {
+                "tag": "UU5.Bricks.Span",
+                "attributes": {}
+            },
+            "allowed": {
+                "attributes": ["datetime"]
+            },
+            "automation": {
+                "content": (me) => {
+                    return me.args["datetime"];
+                }
+            }
+        },
+        "ac:plain-text-body": {
+            "ignore": true
+        },
+        "ac:image": {
+            "hasEndTag": false,
+            "replacements": {
+                "tag": "UuBookKit.Imaging.RichImage",
+                "attributes": {
+                    "ac:height": "height",
+                    "ac:width": "width"
+                }
+            },
+            "allowed": {
+                "attributes": ["ac:height", "ac:width"]
+            },
+            "automation": {
+                "attributes": (me) => {
+                    let first_child = me.children.length != 0 ? me.children[0] : null;
+                    let src = "";
+
+                    if (first_child) {
+                        src = "src" in first_child.args ? first_child.args["src"] : "";
+                    }
+
+                    let code = prompt(`Dialog: \u2776/\u2776\n\nV kódu byl nalezen odkaz na obrázek \u27A4${src}\u2B9C.\n\nZadejte kód v uuBook`);
+
+                    me.args["code"] = code ? code : "PLACEHOLDER";
+                    me.children = [];
+
+                    return me.args;
+                }
+            }
+        },
+        "ri:attachment": {
+            "hasEndTag": false,
+            "replacements": {
+                "tag": "UU5.Bricks.Span",
+                "attributes": {
+                    "ri:filename": "src"
+                }
+            },
+            "allowed": {
+                "attributes": ["ri:filename"]
+            },
+        },
+        "a": {
+            "hasEndTag": false,
+            "replacements": {
+                "tag": "UU5.Bricks.Link",
+                "attributes": {
+
+                }
+            },
+            "allowed": {
+                "attributes": [
+                    "href"
+                ]
+            }
+        },
+        "ac:layout": {
+            "skip": true
+        },
+        "ac:layout-cell": {
+            "skip": true
+        },
+        "ac:layout-section": {
+            "skip": true
         }
     }
 };
 
 module.exports = {
-    config
+    config,
+    defaultTagConfig
 };
 },{"./generateId":5}],3:[function(require,module,exports){
 var customDom = require("./custom_dom");
 var htmljs_parser = require("htmljs-parser");
-var menuBuilder = require("./menu_builder").menuBuilder;
-var ParserError = require("./parser_error").ParserError;
+var menuBuilder = require("./menu_builder");
+var ParserError = require("./parser_error");
 
 /**
  * Převede HTMl z confluence do uuString-ů.
  * @param {string} html Řetězec s HTML kódem z confluence.
  * @param {object} config Konfigurační objekt.
  */
-function convert(html, config) {
-    let dom = parseHtmlToCustomDom(html, config);
+function convert(html, config, defaultTagConfig) {
+    let dom = parseHtmlToCustomDom(html, config, defaultTagConfig);
 
     // Tím že volám toString zajistím, že se provedou automatizace před tím, než budu dělat menu
     let content = dom.toString();
-    
+
     // Mám přidat menu?
     if (config.addContentIndex) {
         content = menuBuilder(dom, config) + content;
@@ -388,20 +750,33 @@ function convert(html, config) {
     return content;
 }
 
-function parseHtmlToCustomDom(html, config) {
+function parseHtmlToCustomDom(html, config, defaultTagConfig) {
     let doc = new customDom.Document();
     let currentTag = doc;
     let replacements = config.replacements;
+    let ignoring_until_tag = null;
 
     let parser = htmljs_parser.createParser({
         onOpenTag: (event) => {
             let originalTagName = event.tagName; // Jméno tagu
             let originalAttributes = event.attributes; // Argumenty
 
+            if (ignoring_until_tag != null) {
+                return;
+            }
+
             if (originalTagName in replacements) {
-                let replInfo = replacements[originalTagName];
+                let replInfo = Object.assign({}, defaultTagConfig, replacements[originalTagName]);
 
                 if (replInfo.skip) {
+                    return;
+                }
+
+                // Na rozdíl od skip, ignore nebude započítávat ani potomky
+                // tohoto tagu. Prostě čekám do té doby, než se najde ukončující
+                // tag a pak pokračuju v parsování.
+                if (replInfo.ignore) {
+                    ignoring_until_tag = originalTagName;
                     return;
                 }
 
@@ -416,6 +791,9 @@ function parseHtmlToCustomDom(html, config) {
                     // Je argument podporován
                     if (replInfo.allowed.attributes.includes(attrName)) {
                         // A má se nahradit?
+                        if (!("attributes" in replInfo.replacements)) {
+                            throw `Pro tag ${originalTagName} není nastaven seznam nahrazení atributů`;
+                        }
                         if (attrName in replInfo.replacements.attributes) {
                             newElement.addArgument(
                                 replInfo.replacements.attributes[attrName],
@@ -445,8 +823,18 @@ function parseHtmlToCustomDom(html, config) {
 
         onCloseTag: (event) => {
 
+            // Jsem v průběhu ignorování tagů?
+            if (ignoring_until_tag != null) {
+                // Narazil jsem na konec ignorovaného tagu
+                if (event.tagName == ignoring_until_tag) {
+                    ignoring_until_tag = null;
+                }
+
+                return;
+            }
+
             if (event.tagName in replacements) {
-                let replInfo = replacements[event.tagName];
+                let replInfo = Object.assign({}, defaultTagConfig, replacements[event.tagName]);
                 if (!replInfo.skip) {
 
                     if (currentTag.getTagName() == "document") {
@@ -471,6 +859,15 @@ function parseHtmlToCustomDom(html, config) {
                 textElement
             );
         },
+        onCDATA: (event) => {
+            let text = event.value.trim();
+            if (text.length == 0) {
+                return;
+            }
+
+            let textElement = new customDom.TextElement(text);
+            currentTag.addChild(textElement);
+        },
         onError: (event) => {
             throw new ParserError(event.message, event.pos, event.endPos);
         }
@@ -481,9 +878,7 @@ function parseHtmlToCustomDom(html, config) {
     return doc
 }
 
-module.exports = {
-    convert
-};
+module.exports = convert;
 },{"./custom_dom":4,"./menu_builder":6,"./parser_error":8,"htmljs-parser":15}],4:[function(require,module,exports){
 class Document {
     constructor() {
@@ -510,10 +905,14 @@ class Document {
     }
 
     createElement(originalTagName, replInfo) {
+        let newTagName = replInfo.replacements.tag ? replInfo.replacements.tag : originalTagName;
+        let hasEndTag = replInfo.hasEndTag;
+        let automation = replInfo.automation;
+
         if (originalTagName == "table") {
-            return new TableElement(originalTagName, replInfo.replacements.tag, replInfo.hasEndTag, replInfo.automation);
+            return new TableElement(originalTagName, newTagName, hasEndTag, automation);
         } else {
-            return new Element(originalTagName, replInfo.replacements.tag, replInfo.hasEndTag, replInfo.automation);
+            return new Element(originalTagName, newTagName, hasEndTag, automation);
         }
     }
 
@@ -598,7 +997,7 @@ class Element {
             let key = Object.keys(this.args)[i];
 
             if (this.args.hasOwnProperty(key)) {
-                args.push(key + '="' + this.args[key] + '"');
+                args.push(`${key}="${this.args[key]}"`);
             }
         }
 
@@ -642,8 +1041,6 @@ class TableElement extends Element {
     toString() {
         let isSimpleTable = true;
 
-        //console.log(this.children.length);
-
         // Pro tabulku bez row a col span jde použít bookkit tabulku, jinak uu5 tabulku
         for (let x = 0; x < this.children.length; x++) {
             // Je ještě před náhradou za nové argumenty rowSpan a colSpan
@@ -651,7 +1048,7 @@ class TableElement extends Element {
 
             let row = this.children[x];
 
-            for(let y = 0; y < row.children.length; y++) {
+            for (let y = 0; y < row.children.length; y++) {
                 let cell = row.children[y];
                 let found = cell.hasArgument("rowspan") || cell.hasArgument("colspan");
                 if (found) {
@@ -710,7 +1107,6 @@ class TableElement extends Element {
 
                     // Uložíme data
                     if (elem.getTagName() == "td" || elem.getTagName() == "th") {
-                        // Pro potřeby 
                         data[dataIndex].push(elem.toUUString());
                     } else {
                         data[dataIndex].push(elem.toString());
@@ -719,8 +1115,8 @@ class TableElement extends Element {
             }
         }
 
-        let output = `<UuContentKit.Tables.Table ${(rowHeader ? " rowHeader " : "") + (columnHeader ? " columnHeader " : "")} data='<uu5json/>${JSON.stringify(data)}'/>`;
-        return output.replace("{$header$}", ).replace("{$data$}", JSON.stringify(data));
+        let output = `<UuContentKit.Tables.Table ${(rowHeader ? "rowHeader " : "") + (columnHeader ? "columnHeader " : "")} data=${ JSON.stringify("<uu5json/>" + JSON.stringify(data)).replace(/^("\\")/, "").replace(/(\\"")$/, "").replace(/(")$/, "") }"/>`;
+        return output;
     }
 }
 
@@ -764,9 +1160,7 @@ function generateId (len) {
     return Array.from(arr, dec2hex).join('')
 }
 
-module.exports = {
-    generateId
-};
+module.exports = generateId;
 },{}],6:[function(require,module,exports){
 var customDom = require("./custom_dom");
 
@@ -801,7 +1195,7 @@ class Menu {
 
         // Už existuje prvek, který ale má vyšší level, než ten aktuální
         let right_position = this.current_item;
-        while(right_position.level >= item.level) {
+        while (right_position.level >= item.level) {
             // Má rodiče, přejdu o úroveň výš
             if (right_position.parent) {
                 right_position = right_position.parent;
@@ -818,8 +1212,8 @@ class Menu {
     }
 
     toString() {
-        let data = this.children.map(child => child.toString());
-        let output = `<UU5.Bricks.Section header="Obsah" level="1"><UU5.RichText.Block uu5string="<uu5string/><UU5.Bricks.Ul>${data}</UU5.Bricks.Ul>"/></UU5.Bricks.Section>`;
+        let data = this.children.map(child => child.toString()).join("");
+        let output = `<UU5.Bricks.Section header=\"Obsah\" level=\"1\"><UU5.RichText.Block uu5string=\"<uu5string/><UU5.Bricks.Ul>${data}</UU5.Bricks.Ul>\"/></UU5.Bricks.Section>`;
         return output;
     }
 }
@@ -835,15 +1229,7 @@ class MenuItem {
 
     toString() {
         let data = this.children.map(child => child.toString());
-
-        let output = 
-            `<UU5.Bricks.Li>
-                <UuBookKit.Bricks.GoToPageLink
-                    label='${this.text}'
-                    fragment='${this.link}'/>
-                ${ data.length != 0 ? "<UU5.Bricks.Ul>" + data.join("") + "</UU5.Bricks.Ul>" : ""}
-            </UU5.Bricks.Li>`;
-
+        let output = `<UU5.Bricks.Li><UuBookKit.Bricks.GoToPageLink label=\'${this.text}\' fragment=\'${this.link}\'/> ${ data.length != 0 ? "<UU5.Bricks.Ul>" + data.join("") + "</UU5.Bricks.Ul>" : ""}</UU5.Bricks.Li>`;
         return output;
     }
 }
@@ -851,7 +1237,7 @@ class MenuItem {
 function findTitles(element) {
     let titles = [];
 
-    for(let child of element.getChildren()) {
+    for (let child of element.getChildren()) {
         if (["h1", "h2", "h3", "h4", "h5", "h6"].includes(child.getTagName())) {
             titles.push(child);
         }
@@ -876,23 +1262,28 @@ function menuBuilder(dom, config) {
     for (let title of title_elements) {
 
         menu.addItem(
-            title.args.header, 
-            title.args.id, 
+            title.args.header,
+            title.args.id,
             title.args.level
         );
+    }
+
+    if (menu.children.length == 0) {
+        return "";
     }
 
     return menu.toString();
 }
 
-module.exports = {
-    menuBuilder
-};
+module.exports = menuBuilder;
 },{"./custom_dom":4}],7:[function(require,module,exports){
-var convert = require("./convert").convert;
-var config = require("./config").config;
+var convert = require("./convert");
+var {
+    config,
+    defaultTagConfig
+} = require("./config");
 var beautify = require("js-beautify");
-var ParserError = require("./parser_error").ParserError;
+var ParserError = require("./parser_error");
 
 /**
  * Vstupní brána do celé aplikace. Zde se registrují "listenery" pro
@@ -908,13 +1299,14 @@ document.addEventListener("DOMContentLoaded", ev => {
         let output = document.getElementById("output");
         try {
             // Převede HTML na uuString tagy
-            output_string = convert(input.value, config);
+            output_string = convert(input.value, config, defaultTagConfig);
 
             // Skryju chyby od minule
             document.getElementById("error").style.display = "none";
 
             // Výstup "formátovaného" uuStringu
-            output.value = beautify.html("<uu5string/>" + output_string, {
+            output.value = /*beautify.html(*/ "<uu5string/>" + output_string
+            /*, {
                 indent_size: "4",
                 indent_char: " ",
                 max_preserve_newlines: "5",
@@ -932,22 +1324,24 @@ document.addEventListener("DOMContentLoaded", ev => {
                 comma_first: false,
                 e4x: false,
                 indent_empty_lines: false
-            });
+            });*/
 
             output.focus();
             output.select();
             document.execCommand('copy');
         } catch (e) {
             if (e instanceof ParserError) {
+
                 input.focus();
                 input.setSelectionRange(e.position_start, e.position_end);
 
                 document.getElementById("error_message").innerHTML = e.message;
+                document.getElementById("error").style.display = "block";
             } else {
                 document.getElementById("error_message").innerHTML = e;
+                document.getElementById("error").style.display = "block";
+                throw e;
             }
-
-            document.getElementById("error").style.display = "block";
         }
     });
 });
@@ -960,9 +1354,7 @@ class ParserError {
     }
 }
 
-module.exports = {
-    ParserError
-};
+module.exports = ParserError;
 },{}],9:[function(require,module,exports){
 /**
  * Indexer constructor (takes index and performs pre-emptive caching)

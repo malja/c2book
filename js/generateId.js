@@ -8,6 +8,4 @@ function generateId (len) {
     return Array.from(arr, dec2hex).join('')
 }
 
-module.exports = {
-    generateId
-};
+module.exports = generateId;
