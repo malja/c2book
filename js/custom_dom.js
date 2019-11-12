@@ -1,6 +1,9 @@
+var stringify = require("./tools").stringify;
+
 class Document {
     constructor() {
         this.children = [];
+        this.storage = {};
     }
 
     addChild(child) {
@@ -8,14 +11,19 @@ class Document {
         child.parent = this;
     }
 
-    toString() {
+    getOutput() {
+        console.log(this.children);
         let children_tags = [];
 
-        for (let i = 0; i < this.children.length; i++) {
-            children_tags.push(this.children[i].toString());
+        for (let child of this.children) {
+            children_tags.push(child.getOutput());
         }
 
         return children_tags.join("");
+    }
+
+    toString() {
+        return this.getTagName();
     }
 
     getTagName() {
@@ -35,11 +43,25 @@ class Document {
     }
 
     getText() {
-        return this.children.filter(e => e.getTagName() == "text").join("");
+        return this.children.map(c => c.getText()).join("");
     }
 
     getChildren() {
         return this.children;
+    }
+
+    runAutomation(which) {
+        // Nutný tento for, protože je možné, že automatizace smaže některé potomky
+        for (let childId = this.children.length - 1; childId >= 0; childId--) {
+            this.children[childId].runAutomation(which);
+        }
+
+        // Pro každého potomka, který není tabulka, přidám všechny pod UU5.RichText
+        for (let child of this.children) {
+            if (!child.getTagName() in ["table", "h1", "h2", "h3", "h4", "h5", "h6", "ac:structured-macro"]) {
+                child.setAsRichText();
+            }
+        }
     }
 }
 
@@ -55,6 +77,12 @@ class Element {
 
         this.parent = null;
         this.automation = automation;
+
+        this.isRichText = false;
+    }
+
+    setAsRichText() {
+        this.isRichText = true;
     }
 
     hasArgument(arg) {
@@ -82,14 +110,14 @@ class Element {
         let normal_string = this.getContentAsString();
 
         if (preserveItself) {
-            normal_string = this.toString();
+            normal_string = this.getOutput();
         }
 
         // Před první výskyt jakéhokoliv tagu vloží uustring
         return normal_string.replace("<", "<uu5string/><");
     }
 
-    toString() {
+    getOutput() {
         let tag_arguments = this.getArgumentsAsString();
 
         // Obsah tagu
@@ -100,7 +128,17 @@ class Element {
         let tag_end = this.hasEndTag ? ">" + tag_content + "</" + this.getUUTagName() + ">" : " />";
 
         let result = tag_opening + tag_end;
+
+        if (this.isRichText) {
+            let finalResult = `<UU5.RichText.Block uu5string="${stringify(result)}" />`;
+            result = finalResult;
+        }
+
         return result;
+    }
+
+    toString() {
+        return this.getTagName();
     }
 
     getArgumentsAsString() {
@@ -111,11 +149,9 @@ class Element {
             this.args = this.automation.attributes(this);
         }
 
-        for (let i = 0; i < Object.keys(this.args).length; i++) {
-            let key = Object.keys(this.args)[i];
-
+        for (let key of Object.keys(this.args)) {
             if (this.args.hasOwnProperty(key)) {
-                args.push(`${key}="${this.args[key]}"`);
+                args.push(`${key}="${ stringify(this.args[key]) }"`);
             }
         }
 
@@ -131,8 +167,8 @@ class Element {
         } else {
             let children_tags = [];
 
-            for (let i = 0; i < this.children.length; i++) {
-                children_tags.push(this.children[i].toString());
+            for (let child of this.children) {
+                children_tags.push(child.getOutput());
             }
 
             content = children_tags.join("");
@@ -152,23 +188,37 @@ class Element {
 
         return this.uuTagName;
     }
+
+    runAutomation(which) {
+        if (this.automation && which in this.automation) {
+            this.automation[which](this);
+        }
+
+        // Je třeba použít tento for, protože je možné, že během automatizace budou některé tagy smazány
+        for (let childId = this.children.length - 1; childId >= 0; childId--) {
+            this.children[childId].runAutomation(which);
+        }
+    }
+
+    getText() {
+        return this.children.map(c => c.getText()).join("");
+    }
 }
 
 class TableElement extends Element {
 
-    toString() {
+    getOutput() {
         let isSimpleTable = true;
 
         // Pro tabulku bez row a col span jde použít bookkit tabulku, jinak uu5 tabulku
-        for (let x = 0; x < this.children.length; x++) {
-            // Je ještě před náhradou za nové argumenty rowSpan a colSpan
-            // Proto kontroluju standardní html argumenty
-
+        for (let x in this.children) {
             let row = this.children[x];
 
-            for (let y = 0; y < row.children.length; y++) {
+            for (let y in row.children) {
                 let cell = row.children[y];
-                let found = cell.hasArgument("rowspan") || cell.hasArgument("colspan");
+
+                // Už je po záměně argumentů, takže musím kontrolovat uu-atributy.
+                let found = cell.hasArgument("rowSpan") || cell.hasArgument("colSpan");
                 if (found) {
                     isSimpleTable = false;
                     break;
@@ -189,7 +239,7 @@ class TableElement extends Element {
     }
 
     toTableString() {
-        return super.toString();
+        return super.getOutput();
     }
 
     toSimpleTableString() {
@@ -227,13 +277,13 @@ class TableElement extends Element {
                     if (elem.getTagName() == "td" || elem.getTagName() == "th") {
                         data[dataIndex].push(elem.toUUString());
                     } else {
-                        data[dataIndex].push(elem.toString());
+                        data[dataIndex].push(elem.getOutput());
                     }
                 }
             }
         }
 
-        let output = `<UuContentKit.Tables.Table ${(rowHeader ? "rowHeader " : "") + (columnHeader ? "columnHeader " : "")} data=${ JSON.stringify("<uu5json/>" + JSON.stringify(data)).replace(/^("\\")/, "").replace(/(\\"")$/, "").replace(/(")$/, "") }"/>`;
+        let output = `<UuContentKit.Tables.Table ${(rowHeader ? "rowHeader " : "") + (columnHeader ? "columnHeader " : "")} data="${ stringify("<uu5json/>" + stringify(data)) }"/>`;
         return output;
     }
 }
@@ -242,14 +292,39 @@ class TextElement {
     constructor(text) {
         this.text = text;
         this.parent = null;
+
+        this.isRichText = false;
+    }
+
+    setAsRichText() {
+        this.isRichText = true;
     }
 
     hasArgument(arg) {
         return false;
     }
 
+    getOutput() {
+        let indexInParent = this.parent.children.findIndex(c => c == this);
+        // Pokud není první potomek předka, vloží před text mezeru
+        // Pokud není poslední potomek předka, vloží za text mezeru
+
+        let result = (indexInParent == 0 ? "" : " ") + this.text + (indexInParent == this.parent.children.length - 1 ? "" : " ");
+
+        if (this.isRichText) {
+            let finalResult = `<UU5.RichText.Block uu5string="${stringify(result)}" />`;
+            result = finalResult;
+        }
+
+        return result;
+    }
+
     toString() {
-        return this.text;
+        let tmp = this.isRichText;
+        this.isRichText = false;
+        let text = this.getOutput();
+        this.isRichText = tmp;
+        return text;
     }
 
     getTagName() {
@@ -258,6 +333,14 @@ class TextElement {
 
     getChildren() {
         return [];
+    }
+
+    getText() {
+        return this.text;
+    }
+
+    runAutomation(which) {
+        return;
     }
 }
 

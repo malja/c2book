@@ -10,9 +10,10 @@ var ParserError = require("./parser_error");
  */
 function convert(html, config, defaultTagConfig) {
     let dom = parseHtmlToCustomDom(html, config, defaultTagConfig);
+    dom.runAutomation("preoutput");
 
-    // Tím že volám toString zajistím, že se provedou automatizace před tím, než budu dělat menu
-    let content = dom.toString();
+    // Tím že volám getOutput zajistím, že se provedou automatizace před tím, než budu dělat menu
+    let content = dom.getOutput();
 
     // Mám přidat menu?
     if (config.addContentIndex) {
@@ -142,6 +143,9 @@ function parseHtmlToCustomDom(html, config, defaultTagConfig) {
         },
         onError: (event) => {
             throw new ParserError(event.message, event.pos, event.endPos);
+        },
+        onfinish: (event) => {
+            doc.runAutomation("postparse");
         }
     });
 

@@ -47,8 +47,8 @@ class Menu {
 
     }
 
-    toString() {
-        let data = this.children.map(child => child.toString()).join("");
+    getOutput() {
+        let data = this.children.map(child => child.getOutput()).join("");
         let output = `<UU5.Bricks.Section header=\"Obsah\" level=\"1\"><UU5.RichText.Block uu5string=\"<uu5string/><UU5.Bricks.Ul>${data}</UU5.Bricks.Ul>\"/></UU5.Bricks.Section>`;
         return output;
     }
@@ -63,8 +63,8 @@ class MenuItem {
         this.level = level;
     }
 
-    toString() {
-        let data = this.children.map(child => child.toString());
+    getOutput() {
+        let data = this.children.map(child => child.getOutput());
         let output = `<UU5.Bricks.Li><UuBookKit.Bricks.GoToPageLink label=\'${this.text}\' fragment=\'${this.link}\'/> ${ data.length != 0 ? "<UU5.Bricks.Ul>" + data.join("") + "</UU5.Bricks.Ul>" : ""}</UU5.Bricks.Li>`;
         return output;
     }
@@ -92,7 +92,6 @@ function findTitles(element) {
 function menuBuilder(dom, config) {
     // Vybere všechny nadpisy
     let title_elements = findTitles(dom);
-
     let menu = new Menu();
 
     for (let title of title_elements) {
@@ -108,7 +107,7 @@ function menuBuilder(dom, config) {
         return "";
     }
 
-    return menu.toString();
+    return menu.getOutput();
 }
 
 module.exports = menuBuilder;
